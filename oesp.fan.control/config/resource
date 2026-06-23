@@ -1,0 +1,12 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "fan.monitor",
+        "permission": {
+          "rw": ["fan.monitor"]
+        }
+      }
+    ]
+  }
+}

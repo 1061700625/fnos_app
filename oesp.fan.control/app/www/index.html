@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OESP Fan Control</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">小锋学长生活大爆炸</p>
+        <h1>OESP Fan Control</h1>
+        <p class="sub">监控 CPU 与硬盘温度，自动控制风扇</p>
+      </div>
+      <div class="status-card compact">
+        <span id="fanStatus" class="status-pill">默认</span>
+        <span id="fanIcon" class="fan-icon fan-off" title="风扇停止">
+          <svg viewBox="0 0 24 24" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <path id="fb" d="M12,12 Q14,7 16.5,4.5 Q18,3 19.5,3.5 Q21,4 21,6 Q20.5,7.5 19,8.5 Q17,9.5 12,12 Z" fill="currentColor"/>
+            </defs>
+            <g class="fan-blades">
+              <use href="#fb"/>
+              <use href="#fb" transform="rotate(72,12,12)"/>
+              <use href="#fb" transform="rotate(144,12,12)"/>
+              <use href="#fb" transform="rotate(216,12,12)"/>
+              <use href="#fb" transform="rotate(288,12,12)"/>
+            </g>
+            <circle cx="12" cy="12" r="3" fill="currentColor"/>
+            <circle cx="12" cy="12" r="1.2" fill="white" opacity="0.5"/>
+          </svg>
+        </span>
+        <small id="platform">检测平台中</small>
+      </div>
+      <p id="fanError" class="fan-error" style="display:none"></p>
+    </header>
+
+    <!-- 采样间隔设置弹窗 -->
+    <div id="intervalModal" class="modal-overlay" style="display:none">
+      <div class="modal-box">
+        <h3>采样间隔设置</h3>
+        <div class="modal-body">
+          <label>采样间隔（秒）<input id="modalInterval" type="number" min="1" max="600" step="1"></label>
+        </div>
+        <p class="modal-hint">最短 1 秒，最长 600 秒（10 分钟）。</p>
+        <div class="modal-footer">
+          <button type="button" class="modal-cancel">取消</button>
+          <button type="button" class="modal-ok">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="grid metrics">
+      <article class="metric cpu" id="cpuCard">
+        <span>CPU 当前温度</span>
+        <strong id="cpuTemp">--</strong>
+        <small id="thresholdHint" style="display:none">开启 <b id="cpuOnLabel">--</b> / 关闭 <b id="cpuOffLabel">--</b></small>
+        <div class="metric-popup" id="cpuPopup"></div>
+      </article>
+      <article class="metric disk" id="diskCard">
+        <span>硬盘最高温度</span>
+        <strong id="diskTemp">--</strong>
+        <small>仅监控，不影响风扇策略</small>
+        <div class="metric-popup" id="diskPopup"></div>
+      </article>
+      <article class="metric" id="sampleIntervalCard" title="双击修改采样间隔">
+        <span>采样间隔</span>
+        <strong id="sampleInterval">--</strong>
+        <small>双击修改</small>
+      </article>
+    </section>
+
+    <form id="settings" class="panel form-panel">
+        <h2>风扇策略设置</h2>
+
+        <div class="mode-row">
+          <label class="mode-label">
+            <input type="radio" name="mode" value="disabled" id="modeDisabled">
+            <span>默认</span>
+          </label>
+          <label class="mode-label">
+            <input type="radio" name="mode" value="auto" id="modeAuto">
+            <span>自动</span>
+          </label>
+          <label class="mode-label">
+            <input type="radio" name="mode" value="manual-on" id="modeManualOn">
+            <span>常开</span>
+          </label>
+          <label class="mode-label">
+            <input type="radio" name="mode" value="manual-off" id="modeManualOff">
+            <span>常关</span>
+          </label>
+        </div>
+        <p class="mode-hint"><b>默认</b>＝不控制风扇（恢复系统自动）；<b>自动</b>＝根据 CPU 温度自动开关；<b>常开</b>＝风扇一直全速；<b>常关</b>＝风扇一直停止。</p>
+
+        <div class="auto-area">
+          <div id="autoSettings">
+          <div class="auto-row">
+            <div class="threshold-row">
+              <label>风扇开启温度（°C）<input name="cpuFanOnC" type="number" min="0" max="120" step="1"></label>
+              <label>风扇关闭温度（°C）<input name="cpuFanOffC" type="number" min="0" max="120" step="1"></label>
+            </div>
+            <button type="submit" class="btn-save">保存</button>
+          </div>
+          <p class="hint">关闭阈值须小于开启阈值，形成滞回区间防止频繁启停。</p>
+        </div>
+        </div>
+
+        <div id="fanStatusList" class="fan-status-list"></div>
+
+        <div class="fan-list-section">
+          <h3>检测到的风扇</h3>
+          <ul id="fanList" class="sensor-list"></ul>
+          <p class="hint">风扇控制通过 /sys/class/hwmon 的 PWM 接口实现。如未检测到风扇，可能需要 root 权限或设备不支持 PWM 控制。</p>
+        </div>
+
+        <p id="message" class="message" style="display:none"></p>
+      </form>
+      <div id="toast" class="toast"></div>
+
+    <section class="panel chart-panel">
+      <div class="panel-title">
+        <h2>温度历史曲线</h2>
+        <button id="sampleNow" class="ghost">立即采样</button>
+      </div>
+      <div class="chart-area">
+        <canvas id="chart" width="1080" height="420" aria-label="温度历史曲线"></canvas>
+        <div class="chart-legend-overlay">
+          <span class="cl-item"><span class="cl-dot" style="background:#e54b4b"></span>CPU 温度</span>
+          <span class="cl-item"><span class="cl-dot" style="background:#2563eb"></span>硬盘最高温度</span>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="./main.js"></script>
+</body>
+</html>

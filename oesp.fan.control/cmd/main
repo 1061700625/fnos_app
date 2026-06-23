@@ -1,0 +1,90 @@
+#!/bin/bash
+
+LOG_FILE="${TRIM_PKGVAR}/fan-monitor.log"
+PID_FILE="${TRIM_PKGVAR}/fan-monitor.pid"
+PORT_VALUE="${TRIM_SERVICE_PORT:-5066}"
+
+export PATH=/var/apps/nodejs_v22/target/bin:$PATH
+
+log_msg() {
+    mkdir -p "${TRIM_PKGVAR}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+check_process() {
+    local pid="$1"
+    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+status_process() {
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if check_process "${pid}"; then
+            return 0
+        fi
+        rm -f "${PID_FILE}"
+    fi
+    return 1
+}
+
+start_process() {
+    if status_process; then
+        log_msg "fan monitor already running"
+        return 0
+    fi
+
+    mkdir -p "${TRIM_PKGVAR}"
+    if ! command -v node >/dev/null 2>&1; then
+        echo "nodejs_v22 运行时不可用，请确认依赖应用已安装并启动。" > "${TRIM_TEMP_LOGFILE}"
+        return 1
+    fi
+
+    log_msg "starting fan monitor on port ${PORT_VALUE}; arch=${TRIM_SYS_ARCH}"
+    PORT="${PORT_VALUE}" node "${TRIM_APPDEST}/server/server.js" >> "${LOG_FILE}" 2>&1 &
+    printf "%s" "$!" > "${PID_FILE}"
+    return 0
+}
+
+stop_process() {
+    log_msg "stopping fan monitor"
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if check_process "${pid}"; then
+            kill -TERM "${pid}" >> "${LOG_FILE}" 2>&1
+            count=0
+            while check_process "${pid}" && [ ${count} -lt 10 ]; do
+                sleep 1
+                count=$((count + 1))
+            done
+            if check_process "${pid}"; then
+                kill -KILL "${pid}" >> "${LOG_FILE}" 2>&1
+            fi
+        fi
+        rm -f "${PID_FILE}"
+    fi
+    return 0
+}
+
+case "$1" in
+start)
+    start_process
+    exit $?
+    ;;
+stop)
+    stop_process
+    exit $?
+    ;;
+status)
+    if status_process; then
+        exit 0
+    else
+        exit 3
+    fi
+    ;;
+*)
+    exit 1
+    ;;
+esac

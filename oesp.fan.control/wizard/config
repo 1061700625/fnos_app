@@ -1,0 +1,11 @@
+[
+  {
+    "stepTitle": "配置提示",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "风扇阈值和控制命令请在 fan monitor Web 页面中设置。若开启 command 模式，请先确认命令适配当前 x86 或 arm 设备。"
+      }
+    ]
+  }
+]

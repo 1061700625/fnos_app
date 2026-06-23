@@ -1,0 +1,7 @@
+{
+  "defaults": {
+    "run-as": "root"
+  },
+  "username": "fan.monitor",
+  "groupname": "fan.monitor"
+}
