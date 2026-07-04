@@ -36,8 +36,8 @@ function actualToDisplay(ledName, actualValue) {
 }
 
 // 检查当前时间是否在睡眠模式时间段内
-function isSleepModeActive(sleepModeConfig) {
-    if (!sleepModeConfig || !sleepModeConfig.enabled) {
+function isSleepModeActive(config) {
+    if (!config || !config.enabled) {
         return false;
     }
     
@@ -46,16 +46,93 @@ function isSleepModeActive(sleepModeConfig) {
     const currentMinute = now.getMinutes();
     const currentTime = currentHour * 60 + currentMinute;
     
-    let startTime = sleepModeConfig.startHour * 60 + sleepModeConfig.startMinute;
-    let endTime = sleepModeConfig.endHour * 60 + sleepModeConfig.endMinute;
+    let startTime = config.startHour * 60 + config.startMinute;
+    let endTime = config.endHour * 60 + config.endMinute;
     
     // 处理跨天的情况（例如22:00到06:00）
     if (endTime <= startTime) {
-        // 如果结束时间小于等于开始时间，说明是跨天
         return currentTime >= startTime || currentTime < endTime;
     } else {
-        // 同一天的时间段
         return currentTime >= startTime && currentTime < endTime;
+    }
+}
+
+// 计算下一个睡眠模式事件的时间
+function calculateNextEvent(config) {
+    if (!config || !config.enabled) {
+        return null;
+    }
+    
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    
+    const startTime = config.startHour * 60 + config.startMinute;
+    const endTime = config.endHour * 60 + config.endMinute;
+    
+    let nextStartTime;
+    let nextEndTime;
+    
+    // 计算下一个开始时间
+    if (startTime > currentTime) {
+        nextStartTime = new Date(now);
+        nextStartTime.setHours(config.startHour, config.startMinute, 0, 0);
+    } else {
+        nextStartTime = new Date(now);
+        nextStartTime.setDate(nextStartTime.getDate() + 1);
+        nextStartTime.setHours(config.startHour, config.startMinute, 0, 0);
+    }
+    
+    // 计算下一个结束时间
+    if (endTime > currentTime) {
+        nextEndTime = new Date(now);
+        nextEndTime.setHours(config.endHour, config.endMinute, 0, 0);
+    } else {
+        nextEndTime = new Date(now);
+        nextEndTime.setDate(nextEndTime.getDate() + 1);
+        nextEndTime.setHours(config.endHour, config.endMinute, 0, 0);
+    }
+    
+    // 处理跨天的情况
+    if (endTime <= startTime) {
+        if (currentTime >= startTime) {
+            // 当前在睡眠模式中，下一个事件是结束时间
+            return {
+                type: 'end',
+                time: nextEndTime
+            };
+        } else if (currentTime < endTime) {
+            // 当前在睡眠模式中，下一个事件是结束时间
+            const todayEndTime = new Date(now);
+            todayEndTime.setHours(config.endHour, config.endMinute, 0, 0);
+            return {
+                type: 'end',
+                time: todayEndTime
+            };
+        } else {
+            // 当前不在睡眠模式中，下一个事件是开始时间
+            return {
+                type: 'start',
+                time: nextStartTime
+            };
+        }
+    } else {
+        // 不跨天的情况
+        if (currentTime < startTime) {
+            return {
+                type: 'start',
+                time: nextStartTime
+            };
+        } else if (currentTime < endTime) {
+            return {
+                type: 'end',
+                time: nextEndTime
+            };
+        } else {
+            return {
+                type: 'start',
+                time: nextStartTime
+            };
+        }
     }
 }
 
@@ -162,33 +239,92 @@ async function saveSleepModeConfig(config) {
     }
 }
 
-// 睡眠模式检查定时器
-let sleepModeInterval = null;
+// 睡眠模式状态
 let sleepModeActive = false;
+// 睡眠模式定时器
+let sleepModeTimer = null;
 
-// 启动睡眠模式检查
-function startSleepModeCheck() {
-    if (sleepModeInterval) {
-        clearInterval(sleepModeInterval);
+// 清除现有定时器
+function clearSleepModeTimer() {
+    if (sleepModeTimer) {
+        clearTimeout(sleepModeTimer);
+        sleepModeTimer = null;
+    }
+}
+
+// 设置下一个睡眠模式事件定时器
+async function setNextSleepModeTimer(config) {
+    clearSleepModeTimer();
+    
+    const nextEvent = calculateNextEvent(config);
+    if (!nextEvent) {
+        console.log('No next sleep mode event scheduled');
+        return;
     }
     
-    // 每分钟检查一次
-    sleepModeInterval = setInterval(async () => {
-        try {
-            const config = await loadSleepModeConfig();
-            const shouldBeActive = isSleepModeActive(config);
-            
-            if (shouldBeActive && !sleepModeActive) {
-                sleepModeActive = true;
-                await applySleepMode();
-            } else if (!shouldBeActive && sleepModeActive) {
-                sleepModeActive = false;
-                await restoreLedState();
-            }
-        } catch (error) {
-            console.error('Error in sleep mode check:', error);
+    const now = new Date();
+    const delay = nextEvent.time.getTime() - now.getTime();
+    
+    if (delay <= 0) {
+        console.log('Next event time has passed, scheduling for tomorrow');
+        // 如果时间已经过去，计算明天的
+        const tomorrowEvent = new Date(nextEvent.time);
+        tomorrowEvent.setDate(tomorrowEvent.getDate() + 1);
+        const tomorrowDelay = tomorrowEvent.getTime() - now.getTime();
+        
+        sleepModeTimer = setTimeout(() => {
+            handleSleepModeEvent(nextEvent.type, config);
+        }, tomorrowDelay);
+        
+        console.log(`Scheduled sleep mode ${nextEvent.type} event at ${tomorrowEvent.toLocaleString()}, delay ${tomorrowDelay}ms`);
+    } else {
+        sleepModeTimer = setTimeout(() => {
+            handleSleepModeEvent(nextEvent.type, config);
+        }, delay);
+        
+        console.log(`Scheduled sleep mode ${nextEvent.type} event at ${nextEvent.time.toLocaleString()}, delay ${delay}ms`);
+    }
+}
+
+// 处理睡眠模式事件
+async function handleSleepModeEvent(eventType, config) {
+    console.log(`Handling sleep mode ${eventType} event`);
+    
+    if (eventType === 'start') {
+        sleepModeActive = true;
+        await applySleepMode();
+    } else if (eventType === 'end') {
+        sleepModeActive = false;
+        await restoreLedState();
+    }
+    
+    // 设置下一个事件
+    await setNextSleepModeTimer(config);
+}
+
+// 启动睡眠模式检查（更优雅的实现）
+async function startSleepModeCheck() {
+    try {
+        const config = await loadSleepModeConfig();
+        
+        // 检查当前是否应该处于睡眠模式
+        const shouldBeActive = isSleepModeActive(config);
+        
+        if (shouldBeActive && !sleepModeActive) {
+            console.log('Should be in sleep mode now, applying...');
+            sleepModeActive = true;
+            await applySleepMode();
+        } else if (!shouldBeActive && sleepModeActive) {
+            console.log('Should not be in sleep mode now, restoring...');
+            sleepModeActive = false;
+            await restoreLedState();
         }
-    }, 60 * 1000); // 每分钟检查
+        
+        // 设置下一个事件
+        await setNextSleepModeTimer(config);
+    } catch (error) {
+        console.error('Error starting sleep mode check:', error);
+    }
 }
 
 app.use(cors());
@@ -245,12 +381,6 @@ app.post('/api/leds/:name', async (req, res) => {
         const { name } = req.params;
         const { brightness, on } = req.body;
         
-        // 如果在睡眠模式下，用户手动控制，则暂时禁用睡眠模式直到结束时间
-        if (sleepModeActive) {
-            // 不阻止用户手动控制，但是我们需要确保用户知道正在睡眠模式
-            // 可以考虑添加一个标志，让用户知道
-        }
-        
         const ledPath = path.join(LED_BASE_PATH, name);
         const brightnessPath = path.join(ledPath, 'brightness');
         
@@ -261,7 +391,7 @@ app.post('/api/leds/:name', async (req, res) => {
         if (typeof brightness !== 'undefined') {
             displayBrightness = brightness;
         } else if (typeof on !== 'undefined') {
-            const maxBrightnessPath = path.join(ledPath, 'max_brightness');
+            const maxBrightnessPath = path.join(ledPath, 'maxBrightness');
             let maxBrightness = 1;
             try {
                 maxBrightness = parseInt(await fs.readFile(maxBrightnessPath, 'utf8'));
@@ -307,7 +437,7 @@ app.post('/api/leds', async (req, res) => {
                     if (typeof brightness !== 'undefined') {
                         displayBrightness = brightness;
                     } else if (typeof on !== 'undefined') {
-                        const maxBrightnessPath = path.join(ledPath, 'max_brightness');
+                        const maxBrightnessPath = path.join(ledPath, 'maxBrightness');
                         let maxBrightness = 1;
                         try {
                             maxBrightness = parseInt(await fs.readFile(maxBrightnessPath, 'utf8'));
@@ -368,7 +498,7 @@ app.post('/api/leds/reset', async (req, res) => {
                 const brightnessPath = path.join(ledPath, 'brightness');
                 
                 try {
-                    const maxBrightnessPath = path.join(ledPath, 'max_brightness');
+                    const maxBrightnessPath = path.join(ledPath, 'maxBrightness');
                     let maxBrightness = 1;
                     try {
                         maxBrightness = parseInt(await fs.readFile(maxBrightnessPath, 'utf8'));
@@ -490,11 +620,15 @@ app.post('/api/sleep-mode', async (req, res) => {
         const config = req.body;
         await saveSleepModeConfig(config);
         
-        // 立即检查是否需要应用睡眠模式
-        if (isSleepModeActive(config) && !sleepModeActive) {
+        // 重新设置定时器
+        await setNextSleepModeTimer(config);
+        
+        // 检查当前是否应该激活睡眠模式
+        const shouldBeActive = isSleepModeActive(config);
+        if (shouldBeActive && !sleepModeActive) {
             sleepModeActive = true;
             await applySleepMode();
-        } else if (!isSleepModeActive(config) && sleepModeActive) {
+        } else if (!shouldBeActive && sleepModeActive) {
             sleepModeActive = false;
             await restoreLedState();
         }
@@ -516,15 +650,8 @@ async function startServer() {
         // 确保配置目录存在
         await fs.mkdir(CONFIG_PATH, { recursive: true });
         
-        // 加载睡眠模式配置并启动检查
-        startSleepModeCheck();
-        
-        // 立即检查一次是否需要应用睡眠模式
-        const config = await loadSleepModeConfig();
-        if (isSleepModeActive(config)) {
-            sleepModeActive = true;
-            await applySleepMode();
-        }
+        // 启动睡眠模式检查（更优雅的实现）
+        await startSleepModeCheck();
         
         app.listen(PORT, () => {
             console.log(`OESP LED Control Server is running on port ${PORT}`);
