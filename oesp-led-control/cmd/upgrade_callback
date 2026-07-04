@@ -1,0 +1,11 @@
+#!/bin/bash
+
+### This script is called after the user upgrades the application.
+
+# 确保必要的目录存在
+mkdir -p ${TRIM_PKGVAR}
+mkdir -p ${TRIM_PKGETC}
+
+echo "OESP LED Control application upgraded successfully"
+
+exit 0

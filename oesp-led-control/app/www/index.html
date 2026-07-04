@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OESP LED 控制</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            color: #333;
+        }
+
+        .card-version {
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+        }
+
+        .group-section {
+            margin-bottom: 25px;
+        }
+
+        .group-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .led-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f9fafb;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .led-item:hover {
+            background: #f3f4f6;
+        }
+
+        .led-info {
+            flex: 1;
+        }
+
+        .led-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .led-status {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .led-status.on {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+            border-radius: 30px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #10b981;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(30px);
+        }
+
+        /* 悬浮窗提示样式 */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 250px;
+        }
+
+        .toast.success {
+            background: #d1fae5;
+            color: #059669;
+            border-left: 4px solid #10b981;
+        }
+
+        .toast.error {
+            background: #fee2e2;
+            color: #dc2626;
+            border-left: 4px solid #ef4444;
+        }
+
+        .toast.info {
+            background: #dbeafe;
+            color: #1d4ed8;
+            border-left: 4px solid #3b82f6;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        .toast-icon {
+            font-size: 1.2rem;
+        }
+
+        .toast-close {
+            margin-left: auto;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .action-buttons .btn {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        /* 睡眠模式样式 */
+        .sleep-mode-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 12px;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .sleep-mode-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .sleep-mode-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .sleep-mode-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sleep-mode-time {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .time-input-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .time-input {
+            width: 60px;
+            padding: 8px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 1rem;
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .time-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .time-label {
+            font-size: 0.9rem;
+        }
+
+        .sleep-mode-status {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .sleep-mode-status.active {
+            background: rgba(16, 185, 129, 0.3);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: 500;
+            color: #6b7280;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            color: #374151;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 悬浮窗提示容器 -->
+        <div class="toast-container">
+            <div v-for="toast in toasts" :key="toast.id" :class="['toast', toast.type]">
+                <span class="toast-icon">
+                    <span v-if="toast.type === 'success'">✓</span>
+                    <span v-if="toast.type === 'error'">✗</span>
+                    <span v-if="toast.type === 'info'">ℹ</span>
+                </span>
+                <span>{{ toast.message }}</span>
+                <button class="toast-close" @click="removeToast(toast.id)">&times;</button>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="header">
+                <h1>💡 OESP LED 控制</h1>
+                <p>控制您设备上的所有 LED 灯</p>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">LED 控制</h2>
+                    <span class="card-version">v1.0.0</span>
+                </div>
+
+                <!-- 标签页 -->
+                <div class="tabs">
+                    <div class="tab" :class="{ active: currentTab === 'leds' }" @click="currentTab = 'leds'">
+                        LED列表
+                    </div>
+                    <div class="tab" :class="{ active: currentTab === 'sleep' }" @click="currentTab = 'sleep'">
+                        睡眠模式
+                    </div>
+                </div>
+
+                <!-- LED列表 -->
+                <div v-if="currentTab === 'leds'">
+                    <div class="action-buttons">
+                        <button class="btn btn-success" @click="turnAllOn">全部打开</button>
+                        <button class="btn btn-danger" @click="turnAllOff">全部关闭</button>
+                        <button class="btn btn-warning" @click="resetDefaults">恢复默认</button>
+                        <button class="btn btn-primary" @click="saveConfig">保存配置</button>
+                    </div>
+
+                    <div v-if="loading" class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>加载中...</p>
+                    </div>
+
+                    <div v-else>
+                        <div v-for="group in groupedLeds" :key="group.name" class="group-section">
+                            <h3 class="group-title">{{ group.displayName }}</h3>
+                            <div v-for="led in group.leds" :key="led.name" class="led-item">
+                                <div class="led-info">
+                                    <div class="led-name">{{ led.name }}</div>
+                                    <div class="led-status" :class="{ on: led.on }">
+                                        {{ led.on ? '● 已打开' : '○ 已关闭' }}
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" :checked="led.on" @change="updateLed(led, $event.target.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 睡眠模式 -->
+                <div v-if="currentTab === 'sleep'">
+                    <div class="sleep-mode-section">
+                        <div class="sleep-mode-header">
+                            <div class="sleep-mode-title">🌙 睡眠模式</div>
+                            <div class="sleep-mode-toggle">
+                                <span class="time-label">{{ sleepModeConfig.enabled ? '已启用' : '已禁用' }}</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" :checked="sleepModeConfig.enabled" @change="onSleepModeToggle($event.target.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="sleep-mode-time">
+                            <div class="time-input-group">
+                                <span class="time-label">开始时间：</span>
+                                <input type="number" class="time-input" v-model.number="sleepModeConfig.startHour" :min="0" :max="23" @change="scheduleSaveSleepConfig">
+                                <span class="time-label">:</span>
+                                <input type="number" class="time-input" v-model.number="sleepModeConfig.startMinute" :min="0" :max="59" @change="scheduleSaveSleepConfig">
+                            </div>
+                            <span class="time-label">至</span>
+                            <div class="time-input-group">
+                                <input type="number" class="time-input" v-model.number="sleepModeConfig.endHour" :min="0" :max="23" @change="scheduleSaveSleepConfig">
+                                <span class="time-label">:</span>
+                                <input type="number" class="time-input" v-model.number="sleepModeConfig.endMinute" :min="0" :max="59" @change="scheduleSaveSleepConfig">
+                            </div>
+                        </div>
+
+                        <div class="sleep-mode-status" :class="{ active: sleepModeActive }">
+                            {{ sleepModeActive ? '睡眠模式已激活：所有LED已自动关闭' : '睡眠模式未激活' }}
+                        </div>
+                    </div>
+
+                    <p style="color: #6b7280; font-size: 0.9rem;">
+                        在设定的时间段内，所有LED会自动关闭，睡眠时间结束后自动恢复之前的状态。时间修改后会自动保存。
+                    </p>
+                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center;">
+                        <p style="color: #6b7280; font-size: 0.9rem;">
+                            作者：<a href="https://github.com/1061700625/fnos_app" target="_blank" style="color: #667eea; text-decoration: none;">小锋学长生活大爆炸</a>
+                        </p>
+                        <p style="color: #6b7280; font-size: 0.85rem; margin-top: 5px;">
+                            GitHub：<a href="https://github.com/1061700625/fnos_app" target="_blank" style="color: #667eea; text-decoration: none;">https://github.com/1061700625/fnos_app</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                const leds = ref([]);
+                const loading = ref(true);
+                const toasts = ref([]);
+                const toastId = ref(0);
+                const currentTab = ref('leds');
+                const sleepModeActive = ref(false);
+                const sleepModeConfig = ref({
+                    enabled: false,
+                    startHour: 22,
+                    startMinute: 0,
+                    endHour: 6,
+                    endMinute: 0
+                });
+                const isUpdating = ref(false);
+                let saveSleepTimer = null;
+
+                // 添加悬浮窗提示
+                const showToast = (message, type = 'success') => {
+                    const id = ++toastId.value;
+                    toasts.value.push({ id, message, type });
+                    setTimeout(() => {
+                        removeToast(id);
+                    }, 3000);
+                };
+
+                // 移除悬浮窗提示
+                const removeToast = (id) => {
+                    const index = toasts.value.findIndex(t => t.id === id);
+                    if (index !== -1) {
+                        toasts.value.splice(index, 1);
+                    }
+                };
+
+                // 分组LED
+                const groupedLeds = computed(() => {
+                    const groups = {};
+                    
+                    // 定义分组规则
+                    const groupRules = [
+                        { name: 'power', pattern: /power/, displayName: '电源指示灯' },
+                        { name: 'lan', pattern: /lan/, displayName: '网络状态灯' },
+                        { name: 'disk', pattern: /disk/, displayName: '硬盘活动灯' },
+                        { name: 'other', pattern: /./, displayName: '其他指示灯' }
+                    ];
+
+                    // 初始化分组
+                    groupRules.forEach(rule => {
+                        groups[rule.name] = {
+                            name: rule.name,
+                            displayName: rule.displayName,
+                            leds: []
+                        };
+                    });
+
+                    // 将LED分配到各组
+                    leds.value.forEach(led => {
+                        for (const rule of groupRules) {
+                            if (rule.pattern.test(led.name)) {
+                                groups[rule.name].leds.push(led);
+                                break;
+                            }
+                        }
+                    });
+
+                    // 返回非空的分组
+                    return Object.values(groups).filter(group => group.leds.length > 0);
+                });
+
+                // 优化：只更新变化的LED状态，避免整个列表重新渲染
+                const fetchLeds = async () => {
+                    if (isUpdating.value) return;
+                    
+                    try {
+                        loading.value = leds.value.length === 0;
+                        const response = await fetch('/api/leds');
+                        const data = await response.json();
+                        if (data.success) {
+                            const newLeds = data.leds.map(led => ({
+                                ...led,
+                                on: led.brightness > 0
+                            }));
+                            
+                            if (leds.value.length === 0) {
+                                leds.value = newLeds;
+                            } else {
+                                // 只更新变化的LED
+                                newLeds.forEach(newLed => {
+                                    const oldLed = leds.value.find(l => l.name === newLed.name);
+                                    if (oldLed) {
+                                        if (oldLed.on !== newLed.on) {
+                                            oldLed.on = newLed.on;
+                                            oldLed.brightness = newLed.brightness;
+                                        }
+                                    } else {
+                                        leds.value.push(newLed);
+                                    }
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error fetching LEDs:', error);
+                        if (leds.value.length === 0) {
+                            showToast('获取 LED 列表失败', 'error');
+                        }
+                    } finally {
+                        loading.value = leds.value.length === 0;
+                    }
+                };
+
+                // 优化LED更新，直接修改状态，不等待刷新
+                const updateLed = async (led, newOn) => {
+                    try {
+                        isUpdating.value = true;
+                        // 先更新UI
+                        led.on = newOn;
+                        
+                        const response = await fetch(`/api/leds/${led.name}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                brightness: newOn ? (led.maxBrightness || 1) : 0, 
+                                on: newOn 
+                            })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            showToast(`${led.name} ${newOn ? '已打开' : '已关闭'}`);
+                        } else {
+                            // 失败回滚
+                            led.on = !newOn;
+                            showToast(`更新 ${led.name} 失败: ${data.error}`, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error updating LED:', error);
+                        led.on = !newOn;
+                        showToast(`更新 ${led.name} 失败`, 'error');
+                    } finally {
+                        isUpdating.value = false;
+                    }
+                };
+
+                const turnAllOn = async () => {
+                    try {
+                        isUpdating.value = true;
+                        // 先更新UI
+                        leds.value.forEach(led => led.on = true);
+                        
+                        const response = await fetch('/api/leds', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ on: true })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            showToast('所有 LED 已打开');
+                        }
+                    } catch (error) {
+                        console.error('Error turning all LEDs on:', error);
+                        showToast('打开所有 LED 失败', 'error');
+                    } finally {
+                        isUpdating.value = false;
+                    }
+                };
+
+                const turnAllOff = async () => {
+                    try {
+                        isUpdating.value = true;
+                        // 先更新UI
+                        leds.value.forEach(led => led.on = false);
+                        
+                        const response = await fetch('/api/leds', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ on: false })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            showToast('所有 LED 已关闭');
+                        }
+                    } catch (error) {
+                        console.error('Error turning all LEDs off:', error);
+                        showToast('关闭所有 LED 失败', 'error');
+                    } finally {
+                        isUpdating.value = false;
+                    }
+                };
+
+                const resetDefaults = async () => {
+                    try {
+                        const confirmed = confirm('确定要恢复默认设置吗？');
+                        if (!confirmed) return;
+                        
+                        const response = await fetch('/api/leds/reset', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            await fetchLeds();
+                            showToast('已恢复默认设置');
+                        }
+                    } catch (error) {
+                        console.error('Error resetting LEDs:', error);
+                        showToast('恢复默认设置失败', 'error');
+                    }
+                };
+
+                const saveConfig = async () => {
+                    try {
+                        const response = await fetch('/api/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ leds: leds.value })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            showToast('配置保存成功，下次重启后生效');
+                        }
+                    } catch (error) {
+                        console.error('Error saving config:', error);
+                        showToast('保存配置失败', 'error');
+                    }
+                };
+
+                // 加载睡眠模式配置
+                const loadSleepModeConfig = async () => {
+                    try {
+                        const response = await fetch('/api/sleep-mode');
+                        const data = await response.json();
+                        if (data.success) {
+                            sleepModeConfig.value = data.config;
+                            sleepModeActive.value = data.sleepModeActive;
+                        }
+                    } catch (error) {
+                        console.error('Error loading sleep mode config:', error);
+                    }
+                };
+
+                // 调度保存睡眠配置，避免频繁请求
+                const scheduleSaveSleepConfig = () => {
+                    if (saveSleepTimer) {
+                        clearTimeout(saveSleepTimer);
+                    }
+                    saveSleepTimer = setTimeout(() => {
+                        saveSleepModeConfig();
+                    }, 1000);
+                };
+
+                // 保存睡眠模式配置
+                const saveSleepModeConfig = async () => {
+                    try {
+                        const response = await fetch('/api/sleep-mode', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(sleepModeConfig.value)
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            sleepModeActive.value = data.sleepModeActive;
+                            showToast('睡眠模式配置已保存', 'info');
+                        }
+                    } catch (error) {
+                        console.error('Error saving sleep mode config:', error);
+                        showToast('保存睡眠模式配置失败', 'error');
+                    }
+                };
+
+                // 睡眠模式开关切换
+                const onSleepModeToggle = async (enabled) => {
+                    sleepModeConfig.value.enabled = enabled;
+                    await saveSleepModeConfig();
+                };
+
+                onMounted(() => {
+                    fetchLeds();
+                    loadSleepModeConfig();
+                    
+                    // 定期刷新LED状态（降低频率到10秒，优化性能）
+                    setInterval(() => {
+                        fetchLeds();
+                    }, 10000);
+                    
+                    // 定期检查睡眠模式状态
+                    setInterval(() => {
+                        loadSleepModeConfig();
+                    }, 60000);
+                });
+
+                return {
+                    leds,
+                    loading,
+                    toasts,
+                    currentTab,
+                    sleepModeActive,
+                    sleepModeConfig,
+                    groupedLeds,
+                    updateLed,
+                    turnAllOn,
+                    turnAllOff,
+                    resetDefaults,
+                    saveConfig,
+                    scheduleSaveSleepConfig,
+                    onSleepModeToggle,
+                    showToast,
+                    removeToast
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

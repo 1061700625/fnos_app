@@ -1,0 +1,12 @@
+#!/bin/bash
+
+### This script is called after the user uninstalls the application.
+
+# 移除临时文件配置
+if [ -f "/etc/tmpfiles.d/oesp-led-control.conf" ]; then
+    rm -f "/etc/tmpfiles.d/oesp-led-control.conf"
+fi
+
+echo "OESP LED Control application uninstalled"
+
+exit 0

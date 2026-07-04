@@ -1,0 +1,12 @@
+#!/bin/bash
+
+### This script is called before the user installs the application.
+
+# 检查系统是否有必要的 LED 控制接口
+if [ ! -d "/sys/class/leds" ]; then
+    if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+        echo "Warning: /sys/class/leds directory not found. LED control may not work properly." > "${TRIM_TEMP_LOGFILE}"
+    fi
+fi
+
+exit 0

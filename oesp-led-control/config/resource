@@ -1,0 +1,28 @@
+{
+    "data-share":
+    {
+        "shares":
+        [
+            {
+                "name": "oesp-led-control",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "oesp-led-control"
+                    ]
+                }
+            },
+            {
+                "name": "oesp-led-control/data",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "oesp-led-control"
+                    ]
+                }
+            }
+        ]
+    }
+}

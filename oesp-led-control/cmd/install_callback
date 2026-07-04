@@ -1,0 +1,14 @@
+#!/bin/bash
+
+### This script is called after the user installs the application.
+
+# 确保必要的目录存在
+mkdir -p ${TRIM_PKGVAR}
+mkdir -p ${TRIM_PKGETC}
+
+# 确保日志文件存在
+touch ${TRIM_PKGVAR}/info.log
+
+echo "OESP LED Control application installed successfully"
+
+exit 0

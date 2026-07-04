@@ -1,0 +1,13 @@
+{
+    ".url": {
+        "oesp-led-control.Application": {
+            "title": "OESP LED 控制",
+            "icon": "images/icon_{0}.png",
+            "type": "iframe",
+            "protocol": "",
+            "port": "3000",
+            "url": "/",
+            "allUsers": true
+        }
+    }
+}

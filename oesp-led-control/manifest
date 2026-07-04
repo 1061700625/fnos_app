@@ -1,0 +1,12 @@
+appname               = oesp-led-control
+version               = 1.0.0
+display_name          = OESP LED 控制
+desc                  = 用于控制 OESP 设备 LED 灯的应用，支持灯光开关、临时控制和永久设置，以及恢复默认功能，LED按类型分组显示，支持反向LED逻辑，新增睡眠模式自动关灯和悬浮窗提示，优化了页面刷新问题，更新了新的应用图标，改进了睡眠模式的时间修改体验。
+platform              = arm
+source                = thirdparty
+maintainer            = 小锋学长生活大爆炸
+distributor           = 小锋学长生活大爆炸
+desktop_uidir         = ui
+desktop_applaunchname = oesp-led-control.Application
+service_port          = 3000
+install_dep_apps      = nodejs_v22

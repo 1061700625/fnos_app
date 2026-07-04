@@ -1,0 +1,165 @@
+#!/bin/bash
+
+# 配置 Node.js 环境
+export PATH=/var/apps/nodejs_v22/target/bin:$PATH
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+PID_FILE="${TRIM_PKGVAR}/app.pid"
+APP_DIR="${TRIM_APPDEST}/server"
+
+# 检查 Node.js 是否可用
+check_node() {
+    if ! command -v node &> /dev/null; then
+        echo "Node.js not found in PATH" >&2
+        return 1
+    fi
+    if ! command -v npm &> /dev/null; then
+        echo "npm not found in PATH" >&2
+        return 1
+    fi
+    return 0
+}
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
+}
+
+# 安装依赖
+install_deps() {
+    cd "${APP_DIR}" || return 1
+    if [ ! -d "node_modules" ]; then
+        log_msg "Installing dependencies..."
+        npm install --production >> ${LOG_FILE} 2>&1
+        if [ $? -ne 0 ]; then
+            log_msg "Failed to install dependencies"
+            return 1
+        fi
+        log_msg "Dependencies installed successfully"
+    fi
+    return 0
+}
+
+start_process() {
+    if status; then
+        return 0
+    fi
+
+    if ! check_node; then
+        log_msg "Node.js is not available, cannot start application"
+        if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+            echo "Node.js is not available, cannot start application" > "${TRIM_TEMP_LOGFILE}"
+        fi
+        return 1
+    fi
+
+    log_msg "Starting OESP LED Control Server ..."
+    
+    # 安装依赖
+    if ! install_deps; then
+        if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+            echo "Failed to install dependencies" > "${TRIM_TEMP_LOGFILE}"
+        fi
+        return 1
+    fi
+
+    # 切换到应用目录
+    cd "${APP_DIR}" || {
+        log_msg "Cannot change to application directory: ${APP_DIR}"
+        if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+            echo "Cannot change to application directory: ${APP_DIR}" > "${TRIM_TEMP_LOGFILE}"
+        fi
+        return 1
+    }
+
+    # 启动服务器
+    node index.js >> ${LOG_FILE} 2>&1 &
+    # write pid to pidfile
+    printf "%s" "$!" > ${PID_FILE}
+    
+    log_msg "Server started with PID: $(cat ${PID_FILE})"
+    
+    # 等待服务器启动
+    sleep 2
+    
+    return 0
+}
+
+stop_process() {
+    log_msg "Stopping process ..."
+
+    if [ -r "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        
+        log_msg "pid=${pid}"
+        if ! check_process "${pid}"; then
+            # process not exist, delete pidfile
+            rm -f "${PID_FILE}"
+            log_msg "remove pid file 1"
+            return
+        fi
+
+        log_msg "send TERM signal to PID:${pid}..."
+        kill -TERM ${pid} >> ${LOG_FILE} 2>&1
+
+        local count=0
+        while check_process "${pid}" && [ $count -lt 10 ]; do
+            sleep 1
+            count=$((count + 1))
+            log_msg "waiting process terminal... (${count}s/10s)"
+        done
+
+        if check_process "${pid}"; then
+            log_msg "send KILL signal to PID:${pid}..."
+            kill -KILL "${pid}"
+            sleep 1
+            rm -f "${PID_FILE}"
+        else
+            log_msg "process killed... "
+            rm -f "${PID_FILE}"
+        fi
+    fi
+
+    return 0
+}
+
+check_process() {
+    local pid=$1
+    if kill -0 "${pid}" 2>/dev/null; then
+        return 0  # process exist
+    else
+        return 1  # process not exist
+    fi
+}
+
+status() {
+    if [ -f "${PID_FILE}" ]; then
+        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
+        if check_process "${pid}"; then
+            return 0
+        else
+            # Process is not running but pidfile exists - clean it up
+            rm -f "${PID_FILE}"
+        fi    
+    fi
+
+    return 1
+}
+
+case $1 in
+start)
+    start_process
+    ;;
+stop)
+    stop_process
+    ;;
+status)
+    if status; then 
+        exit 0
+    else 
+        exit 3
+    fi
+    ;;
+*)
+    exit 1
+    ;;
+esac
